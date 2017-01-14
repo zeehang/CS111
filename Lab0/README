@@ -1,0 +1,21 @@
+README
+
+Michael Zhang
+404606017
+
+Description of files:
+lab0.c - the source code for the finished executable. Meets the requirements of the spec.
+gdb_backtrace.png - shows running the program in gdb with --segfault and the results of the backtrace command after failure
+gdb_breakpoint.png - has a breakpoint of the null pointer in gdb and inspects to ensure that the pointer is NULL
+Makefile - this allows you to build the executable. Also contains the following options
+  make clean - which will delete all files created by make
+  make check - runs test to ensure that the executable works. For my test cases, I tested created
+  an input.txt and output.txt and ran the following cases
+  ./lab0 < input.txt > output.txt
+  ./lab0 --input=input.txt > output.txt
+  ./lab0 --output=output.txt < input.txt
+  ./lab0 --input=input.txt --output=output.txt
+  ensuring that the exit code was 0 meaning the program was successful. It also checks that giving input a nonexistent
+  file will return exit code 1, writing to a protected file will return exit code 2 and that catching a sigfault
+  will return and exit code of 3. I also ensure that the segmentation fault works.
+  make dist - packages the screenshots, source code, README and makefile into a tar.gz with my ID number as an identifier
