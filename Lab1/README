@@ -1,0 +1,21 @@
+LAB 1A README
+
+Name: Michael Zhang
+ID: 404606017
+
+Below, you will find descriptions of the files within this tar
+
+  lab1.c - the source code for the project. I haven't found any limitations
+  in the code - it correctly works with the functions --wronly, --rdonly, --command and --verbose
+  giving error messages when the user input is not correct. It has been tested against the grading script
+  as well as the test cases listed in the Makefile. At this stage, I'm not sure if it returns the maximum
+  error number encountered over the course of running the program.
+
+  Makefile - has the options to create the tar ball, clean up files created,
+  as well as check test cases using testscript.sh. The cases include checking a normal
+  rdonly and wronly, as well as using the command. It also checks to make sure that a failed
+  file read returns the correct message.
+
+  testscript.sh - used in makecheck
+
+  README - this file, provides description of the files included.
