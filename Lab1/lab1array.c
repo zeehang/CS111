@@ -26,12 +26,14 @@ int maxfilenum;
 bool verboseflag;
 int argindex;
 bool waitflag;
+struct command cmdarray[1024]; //TODO: make this dynamic!
 
 void sighandler(int signum)
 {
   fprintf(stderr, "%d %s", signum, "caught\n");
   exit(signum);
 }
+
 
 void executecommand(struct command toexecute)
 {
@@ -57,16 +59,35 @@ void executecommand(struct command toexecute)
       fderror = true;
     if(fderror)
       fprintf(stderr, "dup2 error!");
+
     execvp(toexecute.args[3], &toexecute.args[3]);
   }
   else if (pid > 0)
   {
     if(waitflag)
     {
+      // for (int i = 0; i < numfiles; i++)
+      // {
+      //   close(filearray[i]);
+      // }
       toexecute.pid = wait(&toexecute.status);
       fprintf(stdout, "Exit status: %i %s", WEXITSTATUS(toexecute.status), "\n");
-      fprintf(stdout, "%s %s", toexecute.args[3], "\n");
+      //fprintf(stdout, "%s %s", toexecute.args[3], " ");
+      for(int i = 3; i<toexecute.numargs; i++)
+      {
+        fprintf(stdout, "%s %s", toexecute.args[i], " ");
+      }
+
     }
+  }
+  return;
+}
+
+void executecommands(int numcmds)
+{
+  for (int i = 0; i < numcmds; i++)
+  {
+    executecommand(cmdarray[i]);
   }
   return;
 }
@@ -122,6 +143,7 @@ void openfile(int flag)
     return;
 }
 
+
 void openpipe()
 {
   //TODO: create new pfd array? should it be in command struct? or should it be in file array
@@ -133,11 +155,10 @@ void openpipe()
   }
   //dup2(filearray[numfiles], pipefd[0]);
   filearray[numfiles] = pipefd[0];
-  //  close(pipefd[0]);
   numfiles++;
   //  dup2(filearray[numfiles], pipefd[1]);
 
-filearray[numfiles] = pipefd[1];
+  filearray[numfiles] = pipefd[1];
     //close(pipefd[1]);
   numfiles++;
   return;
@@ -172,11 +193,17 @@ int main(int argc, char *argv[])
     {"abort", no_argument, 0, 'a'},
     {"catch", required_argument, 0, 'h'},
     {"wait", no_argument, 0, 'i'},
+    {"close", required_argument, 0, 'x'},
+    {"ignore", required_argument, 0, 'g'},
+    {"default", required_argument, 0, 'd'},
+    {"pause", no_argument, 0, 'u'},
     {0, 0, 0, 0}
   };
   int fileflags = 0;
   waitflag = false;
   struct command execute;
+
+  int commandcounter = 0;
   verboseflag = false;
   maxfilenum = 10;
   filearray = malloc(maxfilenum*sizeof(int));
@@ -198,7 +225,9 @@ int main(int argc, char *argv[])
       break;
       case 'c':
       execute = readargs(argc, argv);
-      executecommand(execute);
+      cmdarray[commandcounter] = execute;
+      commandcounter++;
+    //  executecommand(execute);
       break;
       case 'p':
       openpipe();
@@ -249,8 +278,22 @@ int main(int argc, char *argv[])
       case 'i':
       waitflag = true;
       break;
+      case 'x':
+      close(filearray[atoi(optarg)]);
+      break;
+      case 'g':
+      signal(atoi(optarg), SIG_IGN);
+      break;
+      case 'd':
+      signal(atoi(optarg), SIG_DFL);
+      break;
+      case 'u':
+      pause();
+      break;
     }
   }
+  executecommands(commandcounter);
+
   exit(errno);
 
 //TODO: make sure verbose works for all options
