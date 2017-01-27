@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <string.h>
 
 
 struct command
@@ -70,7 +71,10 @@ void executecommand(struct command toexecute)
       // {
       //   close(filearray[i]);
       // }
-      toexecute.pid = wait(&toexecute.status);
+      close(filearray[atoi(toexecute.args[0])]);
+      close(filearray[atoi(toexecute.args[1])]);
+      close(filearray[atoi(toexecute.args[2])]);
+      toexecute.pid = waitpid(pid, &toexecute.status, 0);
       fprintf(stdout, "Exit status: %i %s", WEXITSTATUS(toexecute.status), "\n");
       //fprintf(stdout, "%s %s", toexecute.args[3], " ");
       for(int i = 3; i<toexecute.numargs; i++)
@@ -207,17 +211,15 @@ int main(int argc, char *argv[])
   verboseflag = false;
   maxfilenum = 10;
   filearray = malloc(maxfilenum*sizeof(int));
-  int argccopy = argc;
-  char *argvcopy = argv;
-  while((opt = getopt_long(argc, argv, "sci:o:", long_options, &long_index))!=-1)
+  for (int i = 0; i < argc; i++)
   {
-    switch(opt){
-      case 'i':
+    if(strcmp("--wait", argv[i]) ==0)
+    {
       waitflag = true;
       break;
     }
   }
-  while((opt = getopt_long(argccopy, argvcopy, "sci:o:", long_options, &long_index))!=-1)
+  while((opt = getopt_long(argc, argv, "sci:o:", long_options, &long_index))!=-1)
   {
     switch(opt){
       case 'r':
@@ -234,7 +236,7 @@ int main(int argc, char *argv[])
       verboseflag = true;
       break;
       case 'c':
-       execute = readargs(argc, argv);
+      execute = readargs(argc, argv);
       // cmdarray[commandcounter] = execute;
       // commandcounter++;
       executecommand(execute);
@@ -289,7 +291,8 @@ int main(int argc, char *argv[])
       // waitflag = true;
       // break;
       case 'x':
-      close(filearray[atoi(optarg)]);
+      if(close(filearray[atoi(optarg)])==-1)
+        fprintf(stderr, "Error closing file");
       break;
       case 'g':
       signal(atoi(optarg), SIG_IGN);
