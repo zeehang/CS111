@@ -8,8 +8,12 @@
 #include <stdbool.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
+#include <sys/time.h>
+#include <string.h>
+#include <time.h>
 
-
+void outputusage(struct rusage begin, struct timeval ustart, struct timeval sstart, bool child);
 struct command
 {
   int pid;
@@ -26,6 +30,13 @@ int maxfilenum;
 bool verboseflag;
 int argindex;
 bool waitflag;
+bool profileflag;
+struct command cmdarray[1024]; //TODO: make this dynamic!
+struct sigaction act;
+struct rusage begin, end;
+struct timeval ustart, sstart;
+//struct rusage begin, end;
+struct timeval ustart, uend, sstart, send;
 
 void sighandler(int signum)
 {
@@ -56,20 +67,53 @@ void executecommand(struct command toexecute)
     if(dup2(filearray[atoi(toexecute.args[2])], 2)<0)
       fderror = true;
     if(fderror)
-      fprintf(stderr, "dup2 error!");
+      fprintf(stderr, "dup2 error! Invalid file descriptor\n");
+    for (int i=3; i<numfiles; i++)
+    {
+      close(filearray[i]);
+    }
     execvp(toexecute.args[3], &toexecute.args[3]);
   }
   else if (pid > 0)
   {
     if(waitflag)
     {
-      toexecute.pid = wait(&toexecute.status);
+      // for (int i = 0; i < numfiles; i++)
+      // {
+      //   close(filearray[i]);
+      // }
+      close(filearray[atoi(toexecute.args[0])]);
+      close(filearray[atoi(toexecute.args[1])]);
+      close(filearray[atoi(toexecute.args[2])]);
+      toexecute.pid = waitpid(pid, &toexecute.status, 0);
       fprintf(stdout, "Exit status: %i %s", WEXITSTATUS(toexecute.status), "\n");
-      fprintf(stdout, "%s %s", toexecute.args[3], "\n");
+      //fprintf(stdout, "%s %s", toexecute.args[3], " ");
+      for(int i = 3; i<toexecute.numargs; i++)
+      {
+        fprintf(stdout, "%s %s", toexecute.args[i], " ");
+      }
+      if(profileflag)
+      {
+        getrusage(RUSAGE_SELF, &begin);
+        fprintf(stdout, "--profile for parent process\n");
+        outputusage(begin, ustart, sstart, false);
+        getrusage(RUSAGE_CHILDREN, &begin);
+        fprintf(stdout, "--profile for child process\n");
+        outputusage(begin, ustart, sstart, false);
+      }
     }
   }
   return;
 }
+
+// void executecommands(int numcmds)
+// {
+//   for (int i = 0; i < numcmds; i++)
+//   {
+//     executecommand(cmdarray[i]);
+//   }
+//   return;
+// }
 
 struct command readargs(int argc, char *argv[])
 {
@@ -108,9 +152,59 @@ void reallocarray()
   return;
 }
 
+void outputusage(struct rusage begin, struct timeval ustart, struct timeval sstart, bool child)
+{
+    if(child)
+    {
+
+    }
+    //else
+      //getrusage(RUSAGE_SELF, &ru);
+  //  ustart = begin.ru_utime;
+  //  sstart = begin.ru_stime;
+    uend = begin.ru_utime;
+    send = begin.ru_stime;
+    double uudiff = (double)uend.tv_usec - (double)ustart.tv_usec;
+    double usdiff = (double)uend.tv_sec - (double)ustart.tv_sec;
+    double sudiff = (double)send.tv_usec - (double)send.tv_sec;
+    double ssdiff = (double)send.tv_sec - (double)sstart.tv_sec;
+    // fprintf(stdout, "end time -U %.9f\n", uend.tv_usec);
+    // fprintf(stdout, "start time -U %.9f\n", ustart.tv_usec);
+    // fprintf(stdout, "end time -S %.9f\n", send.tv_usec);
+    // fprintf(stdout, "start time -S %.9f\n", sstart.tv_usec);
+    // fprintf(stdout, "sdiff %.9f\n", sudiff);
+    // fprintf(stdout, "udiff %.9f\n", uudiff);
+    if(uudiff < 0)
+    {
+      usdiff -= 1L;
+      uudiff = -uudiff;
+    }
+
+    if(sudiff <0)
+    {
+      ssdiff -= 1L;
+      sudiff = -sudiff;
+    }
+    double const divisor = 1000000L;
+    uudiff /= divisor;
+    sudiff /= divisor;
+  //  long double test = (3.0)/(5.0);
+  //  fprintf(stdout, "%f", test);
+    fprintf(stdout, "System time taken: %.6f seconds\n", (double)(ssdiff+sudiff),"\n" );
+    fprintf(stdout, "User time taken: %.6f seconds\n", (double)(usdiff+uudiff),"\n" );
+    fprintf(stdout, "Maximum resident set size: %f\n", begin.ru_maxrss);
+    fprintf(stdout, "Voluntary context switches: %d\n", begin.ru_nvcsw);
+    fprintf(stdout, "Involuntary context switches: %d\n", begin.ru_nivcsw);
+    fprintf(stdout, "Page reclaims: %d\n", begin.ru_minflt);
+    fprintf(stdout, "Page faults: %d\n", begin.ru_majflt);
+    fprintf(stdout, "Signals recieved: %d\n\n", begin.ru_nsignals);
+  //  fprintf(stdout, "\n%d", (3.0/5.6), "\n");
+  return;
+}
+
 void openfile(int flag)
 {
-    filearray[numfiles] = open(optarg, flag);
+    filearray[numfiles] = open(optarg, flag, S_IRUSR | S_IWUSR | S_IROTH);
     if(filearray[numfiles] == -1)
     {
       fprintf(stderr, "Error opening file: %s\n", optarg);
@@ -118,9 +212,9 @@ void openfile(int flag)
     numfiles++;
     if(numfiles == maxfilenum)
       reallocarray();
-
     return;
 }
+
 
 void openpipe()
 {
@@ -133,11 +227,10 @@ void openpipe()
   }
   //dup2(filearray[numfiles], pipefd[0]);
   filearray[numfiles] = pipefd[0];
-  //  close(pipefd[0]);
   numfiles++;
   //  dup2(filearray[numfiles], pipefd[1]);
 
-filearray[numfiles] = pipefd[1];
+  filearray[numfiles] = pipefd[1];
     //close(pipefd[1]);
   numfiles++;
   return;
@@ -151,10 +244,13 @@ void fault()
 
 int main(int argc, char *argv[])
 {
+  // struct timespec overalltimestart, overalltimeend;
+  // clock_gettime(CLOCK_MONOTONIC, &overalltimestart);
   static struct option long_options[]=
   {
     {"rdonly", required_argument, 0, 'r'},
     {"wronly", required_argument, 0, 'w'},
+    {"rdwr", required_argument, 0, 'b'},
     {"command", required_argument, 0, 'c'},
     {"verbose", no_argument, 0, 'v'},
     {"append", no_argument, 0, '1'},
@@ -172,36 +268,95 @@ int main(int argc, char *argv[])
     {"abort", no_argument, 0, 'a'},
     {"catch", required_argument, 0, 'h'},
     {"wait", no_argument, 0, 'i'},
+    {"close", required_argument, 0, 'x'},
+    {"ignore", required_argument, 0, 'g'},
+    {"default", required_argument, 0, 'd'},
+    {"pause", no_argument, 0, 'u'},
+    {"profile", no_argument, 0, 'f'},
     {0, 0, 0, 0}
   };
   int fileflags = 0;
   waitflag = false;
+  profileflag = false;
   struct command execute;
+  act.sa_handler = sighandler;
+  int commandcounter = 0;
   verboseflag = false;
   maxfilenum = 10;
   filearray = malloc(maxfilenum*sizeof(int));
+  for (int i = 0; i < argc; i++)
+  {
+    if(strcmp("--wait", argv[i]) ==0)
+    {
+      waitflag = true;
+      break;
+    }
+  }
   while((opt = getopt_long(argc, argv, "sci:o:", long_options, &long_index))!=-1)
   {
+    if(profileflag)
+    {
+      getrusage(RUSAGE_SELF, &begin);
+      ustart = begin.ru_utime;
+      sstart = begin.ru_stime;
+    }
     switch(opt){
       case 'r':
       fileflags |= O_RDONLY;
       openfile(fileflags);
+      if(profileflag)
+      {
+        getrusage(RUSAGE_SELF, &begin);
+        fprintf(stdout, "--profile for opening a file read-only\n");
+        outputusage(begin, ustart, sstart, false);
+      }
       fileflags =0;
       break;
       case 'w':
       fileflags |= O_WRONLY;
       openfile(fileflags);
+      if(profileflag)
+      {
+        getrusage(RUSAGE_SELF, &begin);
+        fprintf(stdout, "--profile for opening a file write-only\n");
+        outputusage(begin, ustart, sstart, false);
+      }
       fileflags =0;
+      break;
+      case 'b':
+      fileflags |= O_RDWR;
+      openfile(fileflags);
+      if(profileflag)
+      {
+        getrusage(RUSAGE_SELF, &begin);
+        fprintf(stdout, "--profile for opening a file read and write\n");
+        outputusage(begin, ustart, sstart, false);
+      }
+      fileflags = 0;
       break;
       case 'v':
       verboseflag = true;
       break;
       case 'c':
       execute = readargs(argc, argv);
+      // cmdarray[commandcounter] = execute;
+      // commandcounter++;
       executecommand(execute);
+      if(profileflag  && !waitflag)
+      {
+        getrusage(RUSAGE_SELF, &begin);
+        fprintf(stdout, "--profile for command with no --wait option\n");
+        outputusage(begin, ustart, sstart, false);
+      }
       break;
       case 'p':
       openpipe();
+      if(profileflag)
+      {
+        getrusage(RUSAGE_SELF, &begin);
+        fprintf(stdout, "--profile for opening a pipe\n");
+        outputusage(begin, ustart, sstart, false);
+      }
       break;
       case '1':
       fileflags |= O_APPEND;
@@ -243,15 +398,73 @@ int main(int argc, char *argv[])
       {
       // struct sigaction errorfun;
       // errorfun.sa_handler = sighandler;
-      signal(atoi(optarg), sighandler);
+
+      sigaction(atoi(optarg), &act, NULL);
+      //signal(atoi(optarg), sighandler);
+      if(profileflag)
+      {
+        getrusage(RUSAGE_SELF, &begin);
+        fprintf(stdout, "--profile for signal handler\n");
+        outputusage(begin, ustart, sstart, false);
+      }
       break;
       }
-      case 'i':
-      waitflag = true;
+
+      // case 'i':
+      // waitflag = true;
+      // break;
+      case 'x':
+      if(close(filearray[atoi(optarg)])==-1)
+        fprintf(stderr, "Error closing file");
+        if(profileflag)
+        {
+          getrusage(RUSAGE_SELF, &begin);
+          fprintf(stdout, "--profile for closing a file\n");
+          outputusage(begin, ustart, sstart, false);
+        }
+      break;
+      case 'g':
+      //signal(atoi(optarg), SIG_IGN);
+      {
+        struct sigaction ignore;
+        ignore.sa_handler = SIG_IGN;
+        sigaction(atoi(optarg), &ignore, NULL);
+      break;
+      }
+      case 'd':
+      {
+        struct sigaction ignore;
+        ignore.sa_handler = SIG_DFL;
+        sigaction(atoi(optarg), &ignore, NULL);
+      break;
+      }
+      //signal(atoi(optarg), SIG_DFL);
+      break;
+      case 'u':
+      pause();
+      break;
+      case 'f':
+      profileflag = true;
       break;
     }
   }
-  exit(errno);
+  //executecommands(commandcounter);
+  // if(profileflag)
+  // {
+  //   clock_gettime(CLOCK_MONOTONIC, &overalltimeend);
+  //   fprintf(stdout, "\n====================\noverall time taken simple shell\n");
+  //   double ndiff = (double)overalltimeend.tv_nsec - (double)overalltimestart.tv_nsec;
+  //   double sdiff = (double)overalltimeend.tv_sec - (double)overalltimestart.tv_sec;
+  //   if(ndiff < 0)
+  //   {
+  //     sdiff -= 1L;
+  //     ndiff = -ndiff;
+  //   }
+  //   double const divisor = 1000000000L;
+  //   ndiff /= divisor;
+  //   fprintf(stdout, "Overall time used by simple shell in seconds is: %d", (double)(sdiff+ndiff));
+  // }
+  // exit(errno);
 
 //TODO: make sure verbose works for all options
 //TODO: correctly check for file dsecriptors?
