@@ -18,15 +18,23 @@ pthread_mutex_t mut;
 volatile int spin_lock = 0;
 int numopsyield = 0;
 int opt_yield = 0;
+long int totallocktime =0;
 
 //TODO: print out none if options aren't selected
 
 void* newthread(void *arrset)
 {
     int* setnum = (int*)arrset;
+    struct timespec lockbegin, lockend;
    // fprintf(stdout, "Which iteration: %d\n", *setnum);
     if(syncmflag)
+    {
+        clock_gettime(CLOCK_MONOTONIC, &lockbegin);
         pthread_mutex_lock(&mut);
+        clock_gettime(CLOCK_MONOTONIC, &lockend);
+        long int elapsedntime = 1000000000L*(lockend.tv_sec - lockbegin.tv_sec) + (lockend.tv_nsec - lockbegin.tv_nsec);
+        totallocktime += elapsedntime;
+    }
     if(syncsflag)
         while(__sync_lock_test_and_set(&spin_lock, 1));
     for (int i = (*setnum)*iterations; i < ((*setnum)+1)*(iterations); i++)
@@ -222,7 +230,8 @@ int main(int argc, char* argv[])
     else
         numops = numthreads*iterations;
     double averagetime = (double)elapsedntime/(double)numops;
-    fprintf(stdout, ",%d,%d,%d,%d,%li,%.0f\n", numthreads, iterations, 1, numops, elapsedntime, averagetime);
+    double locktime = (double)totallocktime/(double)numthreads;
+    fprintf(stdout, ",%d,%d,%d,%d,%li,%.0f,%.0f\n", numthreads, iterations, 1, numops, elapsedntime, averagetime, locktime);
     exit(0);
         //TODO: print comma to the begnning to separate title
 }
