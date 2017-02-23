@@ -33,7 +33,7 @@ int SortedList_delete(SortedListElement_t *element)
     SortedListElement_t *prev = element -> prev;
     SortedListElement_t *next = element -> next;
   
-    
+   //fprintf(stderr, "Deleted element %s\n", element -> key);
     if(opt_yield & DELETE_YIELD)
         sched_yield();
     if((prev == NULL && next == NULL) || element == NULL)
