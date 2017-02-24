@@ -8,6 +8,7 @@
 //initialization of global variables
 int numthreads = 1;
 int iterations = 1;
+int sublists = 1;
 int syncmflag = 0;
 int syncsflag = 0;
 int arrtracker = 0;
@@ -27,22 +28,27 @@ void* newthread(void *arrset)
     int* setnum = (int*)arrset;
     struct timespec lockbegin, lockend;
    // fprintf(stdout, "Which iteration: %d\n", *setnum);
-    if(syncmflag)
-    {
-        clock_gettime(CLOCK_MONOTONIC, &lockbegin);
-        pthread_mutex_lock(&mut);
-        clock_gettime(CLOCK_MONOTONIC, &lockend);
-        long int elapsedntime = 1000000000L*(lockend.tv_sec - lockbegin.tv_sec) + (lockend.tv_nsec - lockbegin.tv_nsec);
-        totallocktime += elapsedntime;
-    }
-    if(syncsflag)
-        while(__sync_lock_test_and_set(&spin_lock, 1));
+    
     for (int i = (*setnum)*iterations; i < ((*setnum)+1)*(iterations); i++)
     {
         //SortedListElement_t* elementtoadd = elementarr[i];
         SortedListElement_t* elementptr = &elementarr[i];
+        if(syncmflag)
+        {
+            clock_gettime(CLOCK_MONOTONIC, &lockbegin);
+            pthread_mutex_lock(&mut);
+            clock_gettime(CLOCK_MONOTONIC, &lockend);
+            long int elapsedntime = 1000000000L*(lockend.tv_sec - lockbegin.tv_sec) + (lockend.tv_nsec - lockbegin.tv_nsec);
+            totallocktime += elapsedntime;
+         }
+         if(syncsflag)
+             while(__sync_lock_test_and_set(&spin_lock, 1));
        // fprintf(stdout, "Element ptr %p\n", elementptr);
         SortedList_insert(list, elementptr);
+        if(syncmflag)
+            pthread_mutex_unlock(&mut);
+        if(syncsflag)
+            __sync_lock_release(&spin_lock);
     }
     int listlength;
     listlength = SortedList_length(list);
@@ -55,6 +61,17 @@ void* newthread(void *arrset)
     {
       //  SortedListElement_t* elementtoremove = elementarr[i];
        // fprintf(stdout, "Deleting this element: %d\n", i);
+        if(syncmflag)
+        {
+            clock_gettime(CLOCK_MONOTONIC, &lockbegin);
+            pthread_mutex_lock(&mut);
+            clock_gettime(CLOCK_MONOTONIC, &lockend);
+            long int elapsedntime = 1000000000L*(lockend.tv_sec - lockbegin.tv_sec) + (lockend.tv_nsec - lockbegin.tv_nsec);
+            totallocktime += elapsedntime;
+         }
+         if(syncsflag)
+             while(__sync_lock_test_and_set(&spin_lock, 1));
+        
         if(SortedList_delete(&elementarr[i]))
         {
             if(syncmflag)
@@ -63,11 +80,12 @@ void* newthread(void *arrset)
                  __sync_lock_release(&spin_lock);
             exit(1);
         }
-    }
-    if(syncmflag)
+            if(syncmflag)
         pthread_mutex_unlock(&mut);
     if(syncsflag)
         __sync_lock_release(&spin_lock);
+    }
+
 
     // if(listlength)
     // {
@@ -135,6 +153,7 @@ int main(int argc, char* argv[])
         {"iterations", required_argument, 0, 'i'},
         {"yield", required_argument, 0, 'y'},
         {"sync", required_argument, 0, 's'},
+        {"lists", required_argument, 0, 'l'},
         {0, 0, 0, 0}
     };
 
@@ -171,6 +190,9 @@ int main(int argc, char* argv[])
                         syncsflag = 1;
                         break;
                 }
+            case 'l':
+                sublists = atoi(optarg);
+                break;
         }
     }
     if(!opt_yield)
