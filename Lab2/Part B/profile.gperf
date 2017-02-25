@@ -1,0 +1,209 @@
+Total: 411 samples
+     359  87.3%  87.3%      411 100.0% newthread
+      46  11.2%  98.5%       46  11.2% __strcmp_sse42
+       3   0.7%  99.3%       29   7.1% SortedList_insert
+       3   0.7% 100.0%       23   5.6% SortedList_lookup
+       0   0.0% 100.0%      411 100.0% __clone
+       0   0.0% 100.0%      411 100.0% start_thread
+ROUTINE ====================== newthread in /u/cs/ugrad/zhangm/CS111/lab2/lab2a/lab2btest/lab2_list.c
+   359    411 Total samples (flat / cumulative)
+     .      .  130:         
+     .      .  131:     }
+     .      .  132: }
+     .      .  133: 
+     .      .  134: void* newthread(void *arrset)
+---
+     .      .  135: {
+     .      .  136:     int* setnum = (int*)arrset;
+     .      .  137:     struct timespec lockbegin, lockend;
+     .      .  138:    // fprintf(stdout, "Which iteration: %d\n", *setnum);
+     .      .  139:     
+     .      .  140:     for (int i = (*setnum)*iterations; i < ((*setnum)+1)*(iterations); i++)
+     .      .  141:     {
+     .      .  142:         //SortedListElement_t* elementtoadd = elementarr[i];
+     .      .  143:         SortedListElement_t* elementptr = &elementarr[i];
+     .      .  144:         if(syncmflag)
+     .      .  145:         {
+     .      .  146:             clock_gettime(CLOCK_MONOTONIC, &lockbegin);
+     .      .  147:             pthread_mutex_lock(&mut);
+     .      .  148:             clock_gettime(CLOCK_MONOTONIC, &lockend);
+     .      .  149:             long int elapsedntime = 1000000000L*(lockend.tv_sec - lockbegin.tv_sec) + (lockend.tv_nsec - lockbegin.tv_nsec);
+     .      .  150:             totallocktime += elapsedntime;
+     .      .  151:          }
+     .      .  152:         if(syncsflag)
+   209    209  153:             while(__sync_lock_test_and_set(&spin_lock, 1));
+     .      .  154:        // fprintf(stdout, "Element ptr %p\n", elementptr);
+     .     29  155:         SortedList_insert(list, elementptr);
+     .      .  156:         if(syncmflag)
+     .      .  157:             pthread_mutex_unlock(&mut);
+     .      .  158:         if(syncsflag)
+     .      .  159:             __sync_lock_release(&spin_lock);
+     .      .  160:     }
+     .      .  161:     int listlength;
+     .      .  162:     listlength = SortedList_length(list);
+     .      .  163:     if(listlength == 0)
+     .      .  164:     {
+     .      .  165:         fprintf(stderr, "No list elements inserted! \n");
+     .      .  166:         exit(1);
+     .      .  167:     }
+     .      .  168:     for (int i = (*setnum)*iterations; i < ((*setnum)+1)*(iterations); i++)
+     .      .  169:     {
+     .      .  170:       //  SortedListElement_t* elementtoremove = elementarr[i];
+     .      .  171:        // fprintf(stdout, "Deleting this element: %d\n", i);
+     .      .  172:        //look up before deleting
+     .      .  173:        const char* key = elementarr[i].key;
+     .      .  174:        if(syncmflag)
+     .      .  175:         {
+     .      .  176:             clock_gettime(CLOCK_MONOTONIC, &lockbegin);
+     .      .  177:             pthread_mutex_lock(&mut);
+     .      .  178:             clock_gettime(CLOCK_MONOTONIC, &lockend);
+     .      .  179:             long int elapsedntime = 1000000000L*(lockend.tv_sec - lockbegin.tv_sec) + (lockend.tv_nsec - lockbegin.tv_nsec);
+     .      .  180:             totallocktime += elapsedntime;
+     .      .  181:          }
+     .      .  182:          if(syncsflag)
+   134    134  183:              while(__sync_lock_test_and_set(&spin_lock, 1));
+     .     23  184:        SortedList_lookup(list, key);
+     1      1  185:      if(syncmflag)
+     .      .  186:         pthread_mutex_unlock(&mut);
+     .      .  187:     if(syncsflag)
+     .      .  188:         __sync_lock_release(&spin_lock);
+     .      .  189:     
+     .      .  190:         if(syncmflag)
+     .      .  191:         {
+     .      .  192:             clock_gettime(CLOCK_MONOTONIC, &lockbegin);
+     .      .  193:             pthread_mutex_lock(&mut);
+     .      .  194:             clock_gettime(CLOCK_MONOTONIC, &lockend);
+     .      .  195:             long int elapsedntime = 1000000000L*(lockend.tv_sec - lockbegin.tv_sec) + (lockend.tv_nsec - lockbegin.tv_nsec);
+     .      .  196:             totallocktime += elapsedntime;
+     .      .  197:          }
+     .      .  198:          if(syncsflag)
+    15     15  199:              while(__sync_lock_test_and_set(&spin_lock, 1));
+     .      .  200:         
+     .      .  201:         if(SortedList_delete(&elementarr[i]))
+     .      .  202:         {
+     .      .  203:             if(syncmflag)
+     .      .  204:                 pthread_mutex_unlock(&mut);
+     .      .  205:             if(syncsflag)
+     .      .  206:                  __sync_lock_release(&spin_lock);
+     .      .  207:             exit(1);
+     .      .  208:         }
+     .      .  209:             if(syncmflag)
+     .      .  210:         pthread_mutex_unlock(&mut);
+     .      .  211:     if(syncsflag)
+     .      .  212:         __sync_lock_release(&spin_lock);
+     .      .  213:     }
+     .      .  214: 
+     .      .  215: 
+     .      .  216:     // if(listlength)
+     .      .  217:     // {
+     .      .  218:     //     fprintf(stderr, "Ending list length is not zero! \n");
+     .      .  219:     //     exit(1);
+     .      .  220:     // }
+     .      .  221: }
+---
+     .      .  222: 
+     .      .  223: void read_yield_args(char* optarg)
+     .      .  224: {
+     .      .  225:    // fprintf(stdout, "%c", '-');
+     .      .  226:    // fprintf(stdout, "Legnth of yield: %d", strlen(optarg));
+ROUTINE ====================== newthread in /u/cs/ugrad/zhangm/CS111/lab2/lab2a/lab2btest/lab2_list.c
+   359    411 Total samples (flat / cumulative)
+     .      .  130:         
+     .      .  131:     }
+     .      .  132: }
+     .      .  133: 
+     .      .  134: void* newthread(void *arrset)
+---
+     .      .  135: {
+     .      .  136:     int* setnum = (int*)arrset;
+     .      .  137:     struct timespec lockbegin, lockend;
+     .      .  138:    // fprintf(stdout, "Which iteration: %d\n", *setnum);
+     .      .  139:     
+     .      .  140:     for (int i = (*setnum)*iterations; i < ((*setnum)+1)*(iterations); i++)
+     .      .  141:     {
+     .      .  142:         //SortedListElement_t* elementtoadd = elementarr[i];
+     .      .  143:         SortedListElement_t* elementptr = &elementarr[i];
+     .      .  144:         if(syncmflag)
+     .      .  145:         {
+     .      .  146:             clock_gettime(CLOCK_MONOTONIC, &lockbegin);
+     .      .  147:             pthread_mutex_lock(&mut);
+     .      .  148:             clock_gettime(CLOCK_MONOTONIC, &lockend);
+     .      .  149:             long int elapsedntime = 1000000000L*(lockend.tv_sec - lockbegin.tv_sec) + (lockend.tv_nsec - lockbegin.tv_nsec);
+     .      .  150:             totallocktime += elapsedntime;
+     .      .  151:          }
+     .      .  152:         if(syncsflag)
+   209    209  153:             while(__sync_lock_test_and_set(&spin_lock, 1));
+     .      .  154:        // fprintf(stdout, "Element ptr %p\n", elementptr);
+     .     29  155:         SortedList_insert(list, elementptr);
+     .      .  156:         if(syncmflag)
+     .      .  157:             pthread_mutex_unlock(&mut);
+     .      .  158:         if(syncsflag)
+     .      .  159:             __sync_lock_release(&spin_lock);
+     .      .  160:     }
+     .      .  161:     int listlength;
+     .      .  162:     listlength = SortedList_length(list);
+     .      .  163:     if(listlength == 0)
+     .      .  164:     {
+     .      .  165:         fprintf(stderr, "No list elements inserted! \n");
+     .      .  166:         exit(1);
+     .      .  167:     }
+     .      .  168:     for (int i = (*setnum)*iterations; i < ((*setnum)+1)*(iterations); i++)
+     .      .  169:     {
+     .      .  170:       //  SortedListElement_t* elementtoremove = elementarr[i];
+     .      .  171:        // fprintf(stdout, "Deleting this element: %d\n", i);
+     .      .  172:        //look up before deleting
+     .      .  173:        const char* key = elementarr[i].key;
+     .      .  174:        if(syncmflag)
+     .      .  175:         {
+     .      .  176:             clock_gettime(CLOCK_MONOTONIC, &lockbegin);
+     .      .  177:             pthread_mutex_lock(&mut);
+     .      .  178:             clock_gettime(CLOCK_MONOTONIC, &lockend);
+     .      .  179:             long int elapsedntime = 1000000000L*(lockend.tv_sec - lockbegin.tv_sec) + (lockend.tv_nsec - lockbegin.tv_nsec);
+     .      .  180:             totallocktime += elapsedntime;
+     .      .  181:          }
+     .      .  182:          if(syncsflag)
+   134    134  183:              while(__sync_lock_test_and_set(&spin_lock, 1));
+     .     23  184:        SortedList_lookup(list, key);
+     1      1  185:      if(syncmflag)
+     .      .  186:         pthread_mutex_unlock(&mut);
+     .      .  187:     if(syncsflag)
+     .      .  188:         __sync_lock_release(&spin_lock);
+     .      .  189:     
+     .      .  190:         if(syncmflag)
+     .      .  191:         {
+     .      .  192:             clock_gettime(CLOCK_MONOTONIC, &lockbegin);
+     .      .  193:             pthread_mutex_lock(&mut);
+     .      .  194:             clock_gettime(CLOCK_MONOTONIC, &lockend);
+     .      .  195:             long int elapsedntime = 1000000000L*(lockend.tv_sec - lockbegin.tv_sec) + (lockend.tv_nsec - lockbegin.tv_nsec);
+     .      .  196:             totallocktime += elapsedntime;
+     .      .  197:          }
+     .      .  198:          if(syncsflag)
+    15     15  199:              while(__sync_lock_test_and_set(&spin_lock, 1));
+     .      .  200:         
+     .      .  201:         if(SortedList_delete(&elementarr[i]))
+     .      .  202:         {
+     .      .  203:             if(syncmflag)
+     .      .  204:                 pthread_mutex_unlock(&mut);
+     .      .  205:             if(syncsflag)
+     .      .  206:                  __sync_lock_release(&spin_lock);
+     .      .  207:             exit(1);
+     .      .  208:         }
+     .      .  209:             if(syncmflag)
+     .      .  210:         pthread_mutex_unlock(&mut);
+     .      .  211:     if(syncsflag)
+     .      .  212:         __sync_lock_release(&spin_lock);
+     .      .  213:     }
+     .      .  214: 
+     .      .  215: 
+     .      .  216:     // if(listlength)
+     .      .  217:     // {
+     .      .  218:     //     fprintf(stderr, "Ending list length is not zero! \n");
+     .      .  219:     //     exit(1);
+     .      .  220:     // }
+     .      .  221: }
+---
+     .      .  222: 
+     .      .  223: void read_yield_args(char* optarg)
+     .      .  224: {
+     .      .  225:    // fprintf(stdout, "%c", '-');
+     .      .  226:    // fprintf(stdout, "Legnth of yield: %d", strlen(optarg));
