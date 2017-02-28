@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <sys/stat.h>
 
 struct superBlock_t{
     uint16_t* magicnumber;
@@ -35,6 +36,7 @@ struct freeBitmap_t** freebitmap;
 int filesize;
 int numGroups;
 int BLOCK_SIZE;
+int INODE_SIZE  = 128;
 
 void getSuperBlock(int dskimage)
 {
@@ -88,7 +90,9 @@ void getSuperBlock(int dskimage)
 void getGroupDescriptor(int dskimage)
 {
     FILE *bitmap;
+    FILE *inode;
     bitmap = fopen("bitmap.csv", "w");
+    inode = fopen("inode.csv", "w");
     void* groupTable = malloc(32);
     uint32_t* four_byte = malloc(sizeof(uint32_t));
     uint16_t* two_byte = malloc(sizeof(uint16_t));
@@ -118,45 +122,21 @@ void getGroupDescriptor(int dskimage)
         groups[i].numblocks = *(superBlockvar.blockspergroup);
         
         int freeElements = groups[i].numfreeblocks + groups[i].numfreeinodes;
-        //freebitmap[i] = malloc(freeElements * sizeof *freebitmap[i]);
         int freeElementCounter = 0;
-        //checking for free blocks
-    /*    for(int j = 0; j < BLOCK_SIZE; j++)
-        {
-            pread(dskimage, &single_byte, 1, blockbitmap*(BLOCK_SIZE)+j);
-            uint8_t mask = 1;
-            for (int k = 0; k < 9; k++)
-            {
-                if((mask & single_byte) == 0)
-                {
-                    //fprintf(stdout, "%x,%d\n", blockbitmap, k + j*8 + (*(superBlockvar.blockspergroup)*i));
-                    freebitmap[i][freeElementCounter].mapnum = blockbitmap;
-                    freebitmap[i][freeElementCounter].freeblocknum = j*8 + k + i*(*(superBlockvar.blockspergroup));
-                    freeElementCounter++;
-                }
-                mask = mask << 1;
-            }
-        }*/
-        
         pread(dskimage, single_block, BLOCK_SIZE, BLOCK_SIZE*blockbitmap);
         uint32_t bitmapsize;
         if(i == (numGroups -1))
             bitmapsize =*(superBlockvar.blockspergroup)- (*(superBlockvar.blockcount)) % (*(superBlockvar.blockspergroup));
         else
             bitmapsize = *(superBlockvar.blockspergroup);
-        //check for free blocks
-        
+       
+        //check for free blocks 
         for(uint32_t curr_bit = 0; curr_bit < bitmapsize; curr_bit++)
         {
             single_byte = single_block[curr_bit/8];
             if(!(single_byte & (1 << (curr_bit % 8))))
             {
-                // freebitmap[i][freeElementCounter].mapnum = blockbitmap;
-                // freebitmap[i][freeElementCounter].freeblocknum = *(superBlockvar.blockspergroup)*i + curr_bit + 1;
-                // freeElementCounter++;
-                
                 fprintf(bitmap, "%x,%d\n", blockbitmap, *(superBlockvar.blockspergroup)*i + curr_bit + 1);
-                
             }
         }
 
@@ -167,34 +147,43 @@ void getGroupDescriptor(int dskimage)
             single_byte = single_block[curr_bit/8];
             if(!(single_byte & (1 << (curr_bit % 8))))
             {
-                // freebitmap[i][freeElementCounter].mapnum = inodebitmap;
-                // freebitmap[i][freeElementCounter].freeblocknum = *(superBlockvar.inodespergroup)*i+curr_bit+1;
-                // freeElementCounter++;
-   
                 fprintf(bitmap, "%x,%d\n", inodebitmap, *(superBlockvar.inodespergroup)*i + curr_bit + 1);
-                
+            }
+            else //this means that the node is allcoated and contains content!
+            {
+                //hard coding that the inode size is 128
+                void* inodeTable = malloc(INODE_SIZE);
+                uint32_t inode_number = *(superBlockvar.inodespergroup)*i + curr_bit + 1;
+                char inode_filetype;
+                uint16_t inode_mode;
+                uint16_t inode_owner;
+                uint16_t inode_group;
+                uint16_t inode_link_count;
+                uint32_t inode_create_time;
+                uint32_t inode_modify_time;
+                uint32_t inode_access_time;
+                uint32_t inode_file_size;
+                uint32_t inode_num_blocks;
+                uint32_t inode_block_ptrs[15];
+                uint64_t inode_offset = BLOCK_SIZE*groups[i].inodestartblock + INODE_SIZE*curr_bit;
+                pread(dskimage, inodeTable, INODE_SIZE, inode_offset);
+                two_byte = inodeTable;
+                if((*(two_byte) & 0xA000) && *(two_byte) & 0x8000)
+                    fprintf(inode, "%c\n", 's');
+                else if(*(two_byte) & 0x8000)
+                    fprintf(inode, "%c\n", 'r');
+                else if(*(two_byte) & 0x4000)
+                    fprintf(inode, "%c\n", 'd');
+                else
+                    fprintf(inode, "%c\n", '?');
+
             }
         }
      
-        //check individual bits in the byte
-        // int8_t mask = 1;
-        // for(int k = 1; k<9; k++)
-        // {
-        //     if((mask & one_byte) == 0)
-        //     {
-        //         freebitmap[i][freeElementCounter].mapnum = blockbitmap;
-        //         freebitmap[i][freeElementCounter].freeblocknum = (*(superBlockvar.blockspergroup)*i) + blockbitmap+8*j +k;
-        //         freeElementCounter++;
-        //     }
-        //     mask = mask << 1;
-        // }
-        // for(int j = 0; j < freeElements; j++)
-        // {
-        //     freebitmap[i][j].mapnum = blockbitmap;
-        // }
     }
     //Free bitmap operations and close files
     fclose(bitmap);
+    fclose(inode);
 }
 
 void printCSVfiles()
