@@ -92,8 +92,11 @@ void getGroupDescriptor(int dskimage)
     void* groupTable = malloc(32);
     uint32_t* four_byte = malloc(sizeof(uint32_t));
     uint16_t* two_byte = malloc(sizeof(uint16_t));
+    uint8_t* single_block = malloc(*(superBlockvar.blocksize));
+    uint8_t single_byte;
     numGroups = *(superBlockvar.blockcount)/(*(superBlockvar.blockspergroup));
     groups = malloc(sizeof(struct groupDescriptor_t)*numGroups);
+    freebitmap = malloc(sizeof(struct freeBitmap_t*)*numGroups);
     for(int i = 0; i < numGroups; i++)
     {
         int blockbitmap;
@@ -116,7 +119,53 @@ void getGroupDescriptor(int dskimage)
         groups[i].numblocks = *(superBlockvar.blockspergroup);
         
         int freeElements = groups[i].numfreeblocks + groups[i].numfreeinodes;
-        freebitmap[i] = malloc(sizeof(struct freeBitmap_t)*freeElements);
+        fprintf(stderr, "num of free elements: %d", freeElements);
+        freebitmap[i] = malloc(freeElements*sizeof(struct freeBitmap_t));
+        int freeElementCounter = 0;
+        //checking for free blocks
+        pread(dskimage, single_block, *(superBlockvar.blocksize), *(superBlockvar.blocksize)*blockbitmap);
+        uint32_t bitmapsize;
+        if(i == (numGroups -1))
+            bitmapsize = *(superBlockvar.blockcount) % *(superBlockvar.blockspergroup);
+        else
+            bitmapsize = *(superBlockvar.blockspergroup);
+        
+        for(uint32_t curr_bit = 0; curr_bit < bitmapsize; curr_bit++)
+        {
+            single_byte = single_block[curr_bit/8];
+            if(!(single_byte & (1 << (curr_bit % 8))))
+            {
+                freebitmap[i][freeElementCounter].mapnum = blockbitmap;
+                freebitmap[i][freeElementCounter].freeblocknum = (*(superBlockvar.blockspergroup))*i+curr_bit+1;
+                freeElementCounter++;
+            }
+        }
+
+        //checking for free inodes 
+        pread(dskimage, single_block, *(superBlockvar.blocksize), *(superBlockvar.blocksize)*inodebitmap);
+        for(uint32_t curr_bit = 0; curr_bit < *(superBlockvar.inodespergroup); curr_bit++)
+        {
+            single_byte = single_block[curr_bit/8];
+            if(!(single_byte & (1 << (curr_bit % 8))))
+            {
+                freebitmap[i][freeElementCounter].mapnum = inodebitmap;
+                freebitmap[i][freeElementCounter].freeblocknum = *(superBlockvar.inodespergroup)*i+curr_bit+1;
+                freeElementCounter++;
+            }
+        }
+        
+        //check individual bits in the byte
+        // int8_t mask = 1;
+        // for(int k = 1; k<9; k++)
+        // {
+        //     if((mask & one_byte) == 0)
+        //     {
+        //         freebitmap[i][freeElementCounter].mapnum = blockbitmap;
+        //         freebitmap[i][freeElementCounter].freeblocknum = (*(superBlockvar.blockspergroup)*i) + blockbitmap+8*j +k;
+        //         freeElementCounter++;
+        //     }
+        //     mask = mask << 1;
+        // }
         // for(int j = 0; j < freeElements; j++)
         // {
         //     freebitmap[i][j].mapnum = blockbitmap;
@@ -144,6 +193,22 @@ void printCSVfiles()
     {
         fprintf(fp, "%d,%d,%d,%d,%x,%x,%x\n", groups[i].numblocks, groups[i].numfreeblocks, groups[i].numfreeinodes, groups[i].numdirs, groups[i].freeinodebitmap, groups[i].freeblockbitmap, groups[i].inodestartblock);
     }
+    fclose(fp);
+
+    fp = fopen("bitmap.csv", "w");
+    for(int i = 0; i < numGroups; i++)
+    {
+        
+        int j = 0;
+        for(; j < groups[i].numfreeblocks; j++)
+        {
+            fprintf(fp, "%x,%d\n",freebitmap[i][j].mapnum,freebitmap[i][j].freeblocknum);
+        }
+        for(; j < groups[i].numfreeinodes; j++)
+        {
+            
+        }
+    }
 }
 
 int main(int argc, char* argv[])
@@ -167,6 +232,6 @@ int main(int argc, char* argv[])
     getSuperBlock(dskimage);
     getGroupDescriptor(dskimage);
     printCSVfiles();
-    fprintf(stdout, "Magic number: %04x\n", *(superBlockvar.magicnumber));
+    
 
 }
