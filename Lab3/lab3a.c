@@ -87,6 +87,91 @@ void getSuperBlock(int dskimage)
     // }
 }
 
+void getDirectory(uint32_t parent_inode, uint32_t numblocks, uint32_t blockarr[], int dskimage)
+{
+    FILE* directory;
+   // fprintf(stderr, "%d,%d\n", parent_inode, numblocks);
+    directory = fopen("directory.csv", "w");
+    uint32_t* four_byte = malloc(sizeof(uint32_t));
+    uint16_t* two_byte = malloc(sizeof(uint16_t));
+    uint8_t* one_byte = malloc(sizeof(uint8_t));
+    int entry_counter = 0;
+    uint32_t inode_num;
+    uint16_t entry_length;
+    uint8_t name_length;
+    char namechar;
+    void* dirEntry = malloc(8);
+
+    for(int i = 0; i < numblocks; i++)
+    {
+        int starting_address = blockarr[i]*BLOCK_SIZE;
+        int limit = starting_address + BLOCK_SIZE;
+        while(starting_address < limit)
+        {
+            //get inode number
+            pread(dskimage, dirEntry, 8, starting_address);
+            four_byte = dirEntry;
+            inode_num = *four_byte;
+            two_byte = dirEntry + 4;
+            entry_length = *two_byte;
+            one_byte = dirEntry + 6;
+            name_length = *one_byte;
+
+            if(inode_num == 0)
+            {
+                entry_counter++;
+                starting_address = starting_address + entry_length;
+                continue;
+            }
+            //print information except name
+           // fprintf(directory, "%d,%d,%d,%d,%d,", parent_inode, entry_counter, entry_length, name_length, inode_num);
+            fprintf(directory, "%d,%d,%d,%d,%d,", parent_inode, entry_counter, entry_length, name_length, inode_num);
+            fprintf(stderr, "%d,%d,%d,%d,%d,", parent_inode, entry_counter, entry_length, name_length, inode_num);
+            char* name = malloc(name_length);
+            pread(dskimage, name, name_length, starting_address + 8);
+            name[name_length] = 0;
+
+          //  fprintf(directory, "%s\n", name);
+            fprintf(directory, "\"%s\"\n", name);
+            fprintf(stderr, "\"%s\"\n", name);
+            entry_counter++;
+            starting_address = starting_address + entry_length;
+        }
+    }
+
+    //PREVIOUS IMPLEMENTATION
+    // int end_of_block = 0;
+    // for(int i = 0; i < numblocks; i++)
+    // {
+    //     fprintf(stderr, "Entering for loop for parent inode: %d:\n", parent_inode);
+    //     uint32_t starting_address = (blockarr[i])*BLOCK_SIZE;
+    //     uint32_t limit_address = starting_address + BLOCK_SIZE;
+    //     fprintf(stderr, "Starting address %d:\n", starting_address);
+    //     fprintf(stderr, "Ending address %d:\n", limit_address);
+    //     while(starting_address < limit_address)
+    //     {
+    //         // pread(dskimage, dirEntry, 9, block)
+    //         pread(dskimage, dirEntry, 8, starting_address);
+    //         four_byte = dirEntry;
+    //         inode_num = *four_byte;
+    //         two_byte = dirEntry + 4;
+    //         entry_length = *two_byte;
+    //         one_byte = dirEntry + 6;
+    //         name_length = *one_byte;
+    //         char* name = malloc(name_length);
+    //         pread(dskimage, &name, name_length, starting_address + 8);
+    //         fprintf(stderr, "%d,%d,%d,%d,%d,%s\n", parent_inode, entry_counter, entry_length, name_length, inode_num, name);
+    //         if(fprintf(directory, "%d,%d,%d,%d,%d,%s\n", parent_inode, entry_counter, entry_length, name_length, inode_num, name) <0)
+    //             fprintf(stderr, "printing failed\n");
+    //         entry_counter++;
+    //         starting_address = starting_address + entry_length;
+    //     }
+
+    
+    // }
+    // fclose(directory);
+}
+
 void getGroupDescriptor(int dskimage)
 {
     FILE *bitmap;
@@ -104,7 +189,9 @@ void getGroupDescriptor(int dskimage)
     {
         int blockbitmap;
         int inodebitmap;
+        //offset depending on the group
         int addrtoread = 2048 + (i*32);
+        //get all information necessary for group.csv
         pread(dskimage, two_byte, 2, (addrtoread + 12));
         groups[i].numfreeblocks = *two_byte;
         pread(dskimage, two_byte, 2, (addrtoread + 14));
@@ -166,17 +253,60 @@ void getGroupDescriptor(int dskimage)
                 uint32_t inode_num_blocks;
                 uint32_t inode_block_ptrs[15];
                 uint64_t inode_offset = BLOCK_SIZE*groups[i].inodestartblock + INODE_SIZE*curr_bit;
+                //read the inode table from disk and assign appropriate variables
                 pread(dskimage, inodeTable, INODE_SIZE, inode_offset);
                 two_byte = inodeTable;
-                if((*(two_byte) & 0xA000) && *(two_byte) & 0x8000)
-                    fprintf(inode, "%c\n", 's');
-                else if(*(two_byte) & 0x8000)
-                    fprintf(inode, "%c\n", 'r');
+                if((*(two_byte) & 0x8000)&&(*(two_byte)&0x2000))
+                    inode_filetype = 's';
+                else if((*(two_byte) & 0x8000))
+                    inode_filetype = 'f';
                 else if(*(two_byte) & 0x4000)
-                    fprintf(inode, "%c\n", 'd');
+                {
+                    inode_filetype = 'd';
+                }
                 else
-                    fprintf(inode, "%c\n", '?');
+                    inode_filetype = '?';
+                inode_mode = *two_byte;
+                two_byte = inodeTable + 2;
+                inode_owner = *two_byte;
+                two_byte = inodeTable + 24;
+                inode_group = *two_byte;
+                two_byte = inodeTable + 26;
+                inode_link_count = *two_byte;
+                four_byte = inodeTable + 12;
+                inode_create_time = *four_byte;
+                four_byte = inodeTable + 8;
+                inode_access_time = *four_byte;
+                four_byte = inodeTable + 16;
+                inode_modify_time = *four_byte;
+                four_byte = inodeTable + 4;
+                inode_file_size = *four_byte;
+                four_byte = inodeTable + 28;
+                inode_num_blocks = *four_byte / (2 << BLOCK_SIZE);
 
+                //get the data for the 15 element array
+                for(int j = 0; j < 15; j++)
+                {
+                    four_byte = inodeTable + 40 + j*4;
+                    inode_block_ptrs[j] = *four_byte;
+                }
+   
+                //call the directory function!
+                if(inode_filetype == 'd')
+                {
+                    getDirectory(inode_number, inode_num_blocks, inode_block_ptrs, dskimage);
+                }
+
+                //print out everything except the array
+                fprintf(inode, "%d,%c,%o,%d,%d,%d,%x,%x,%x,%d,%d,", inode_number, inode_filetype, inode_mode, inode_owner, inode_group, inode_link_count, inode_create_time, inode_modify_time, inode_access_time, inode_file_size, inode_num_blocks);
+                //print out the array and add a newline for the next entry
+                for(int j = 0; j < 15; j++)
+                {
+                    if(j == 14)
+                        fprintf(inode, "%x\n", inode_block_ptrs[j]);
+                    else
+                        fprintf(inode, "%x,", inode_block_ptrs[j]);
+                }
             }
         }
      
