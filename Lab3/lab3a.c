@@ -94,58 +94,6 @@ void printTest()
     fclose(dir);
 }
 
-void getDirectory(uint32_t parent_inode, uint32_t numblocks, uint32_t blockarr[], int dskimage)
-{
-    FILE* directory;
-   // fprintf(stderr, "%d,%d\n", parent_inode, numblocks);
-    directory = fopen("directory.csv", "a");
-    uint32_t* four_byte = malloc(sizeof(uint32_t));
-    uint16_t* two_byte = malloc(sizeof(uint16_t));
-    uint8_t* one_byte = malloc(sizeof(uint8_t));
-    int entry_counter = 0;
-    uint32_t inode_num;
-    uint16_t entry_length;
-    uint8_t name_length;
-    char namechar;
-    void* dirEntry = malloc(8);
-
-    for(int i = 0; i < numblocks; i++)
-    {
-        int starting_address = blockarr[i]*BLOCK_SIZE;
-        int limit = starting_address + BLOCK_SIZE;
-        while(starting_address < limit)
-        {
-            //get inode number
-            pread(dskimage, dirEntry, 8, starting_address);
-            four_byte = dirEntry;
-            inode_num = *four_byte;
-            two_byte = dirEntry + 4;
-            entry_length = *two_byte;
-            one_byte = dirEntry + 6;
-            name_length = *one_byte;
-
-            if(inode_num == 0)
-            {
-                entry_counter++;
-                starting_address = starting_address + entry_length;
-                continue;
-            }
-
-            fprintf(directory, "%d,%d,%d,%d,%d,", parent_inode, entry_counter, entry_length, name_length, inode_num);
-
-            char* name = malloc(name_length);
-            pread(dskimage, name, name_length, starting_address + 8);
-            name[name_length] = 0;
-
-
-            fprintf(directory, "\"%s\"\n", name);
-
-            entry_counter++;
-            starting_address = starting_address + entry_length;
-        }
-    }
-}
-
 void getGroupDescriptor(int dskimage)
 {
     FILE *bitmap;
@@ -326,12 +274,10 @@ void getGroupDescriptor(int dskimage)
                                     
 
                                     fprintf(directory, "%d,%d,%d,%d,%d,", inode_number, entry_counter, entry_length, name_length, inode_num);
-                                  //  fprintf(stderr, "%d,%d,%d,%d,%d,", inode_number, entry_counter, entry_length, name_length, inode_num);
                                     char* name_indirect = malloc(name_length);
                                     pread(dskimage, name_indirect, name_length, starting_address_2 + 8);
                                     name_indirect[name_length]  = 0;
                                     fprintf(directory, "\"%s\"\n", name_indirect);
-                                  //  fprintf(stderr, "\"%s\"\n", name_indirect);
                                     entry_counter++;
                                     starting_address_2 = starting_address_2 + entry_length;
 
