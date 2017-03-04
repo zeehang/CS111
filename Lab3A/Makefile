@@ -15,4 +15,4 @@ tests:
 	diff indirect.csv indirect_check.csv
 
 tarball:
-	tar -czvf lab3a404606017.tar.gz lab3a.c Makefile README
+	tar -zcvf lab3a404606017.tar.gz lab3a.c Makefile README directory_check.csv super_check.csv group_check.csv bitmap_check.csv inode_check.csv indirect_check.csv
