@@ -1,4 +1,5 @@
 import csv
+from collections import defaultdict
 with open('super.csv','rb') as superfile:
     reader = csv.reader(superfile, delimiter=',')
     super_csv =[]
@@ -7,7 +8,7 @@ with open('super.csv','rb') as superfile:
         for num in range(0,9):
             super_csv.append(row[num])
 
-TOTAL_INODES = super_csv[1]
+TOTAL_INODES = int(super_csv[1])
 TOTAL_BLOCKS = super_csv[2]
 BLOCK_SIZE = int(super_csv[3])
 BLOCKS_PER_GROUP = super_csv[5]
@@ -104,11 +105,42 @@ for row in inode_csv:
 
 for row in directory_csv:
     if row[4] not in in_use_inodes:
-        txtfile.write('UNALLOCATED INODE < ' + str(row[4]) + ' > REFERENCED BY DIRECTORY < ' + str(row[0]) + ' > ENTRY < ' + str(row[1]) + ' >')
+        print row[0]
 
-#find missing inodes 
+#find missing inodes
+inode_database = {}
+for number in range(1, TOTAL_INODES):
+    inode_database[number] = 0
+for entry in free_inode_bitmap_entries:
+    inode_database[int(entry)] = 1
+for entry in inode_csv:
+    if int(entry[0]) > 11:
+        test_bit = 0
+        for num in range(11, 26):
+            test_bit = test_bit | int(entry[num], 16)
+        if test_bit == 0:
+            inode_database[int(entry[0])] = 0
+        else:
+            inode_database[int(entry[0])] = 1
 
+#print inode_database[20]
 
+for number in range(12, TOTAL_INODES):
+    if inode_database[number] == 0:
+        print number
+        #figure out what the list number means
 
+#incorrect link count
+inode_link_listing = {}
+actual_link_count = defaultdict(int)
+for entry in inode_csv:
+    inode_link_listing[int(entry[0])] = int(entry[5])
 
-                    
+for entry in directory_csv:
+    actual_link_count[int(entry[4])] = actual_link_count[int(entry[4])] + 1
+
+for key, value in inode_link_listing.items():
+    if actual_link_count[key] != value:
+        txtfile.write('LINKCOUNT < ' + str(key) + ' > IS < ' + str(value) + ' > SHOULD BE < ' + str(actual_link_count[key]) + ' >\n')
+
+#incorrect directory entry
