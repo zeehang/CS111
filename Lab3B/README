@@ -8,3 +8,6 @@ Files included:
     Makefile: has the option of make dist, which creates a tarball for submission
                 make run - runs the python script 
                 make clean - removes files generated
+		
+    PLEASE NOTE: Script takes around 1 minute, 30 seconds to run
+    USE 'make run' TO EXECUTE THE SCRIPT
