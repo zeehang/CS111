@@ -63,14 +63,20 @@ with open('inode.csv','rb') as inode_dup:
 group_bitmap_blocks = []
 free_block_bitmap_entries = []
 free_inode_bitmap_entries = []
+free_block_bitmap_numbers = []
+free_inode_bitmap_numbers = []
 for row in group_csv:
     group_bitmap_blocks.append(row[5])
 
 for row in bitmap_csv:
     if row[0] in group_bitmap_blocks:
         free_block_bitmap_entries.append(row[1])
+        if row[0] not in free_block_bitmap_numbers:
+            free_block_bitmap_numbers.append(row[0])
     else:
-        free_inode_bitmap_entries.append(row[1]);
+        free_inode_bitmap_entries.append(row[1])
+        if row[0] not in free_inode_bitmap_numbers:
+            free_inode_bitmap_numbers.append(row[0])
 
 counter = 0
 
@@ -78,24 +84,18 @@ for row in inode_csv:
     for num in range(11,26):
         if str(int(row[num], 16)) in free_block_bitmap_entries:
             txtfile.write('UNALLOCATED BLOCK < ' + str(int(row[num],16)) + ' > REFERENCED BY INODE < ' + str(row[0]) + ' > ENTRY < ' + str(num -11) + ' >\n')
-            counter = counter + 1
-    if counter == 1:
-        break
-    #REMOVE THIS BEFORE SUBMISSION
-
-
 
 #find multiply referenced inodes
 for key in inode_data:
     test_list = []
     test_list = inode_data.get(key)
     if len(test_list) > 1:
-        txtfile.write('MULTIPLY REFERENCED BLOCK < %d > ' % int(key,16))
+        txtfile.write('MULTIPLY REFERENCED BLOCK < %d > BY' % int(key,16))
         for inode in test_list:
-            txtfile.write('BY INODE < ' + inode + ' >')
+            txtfile.write(' INODE < ' + inode + ' >')
             for row in inode_csv:
                 if row[0] == inode:
-                    txtfile.write(' ENTRY < %d > ' % (int(row.index(key))-11))
+                    txtfile.write(' ENTRY < %d >' % (int(row.index(key))-11))
         txtfile.write('\n')
 
 #find unallocated inodes 
@@ -105,7 +105,7 @@ for row in inode_csv:
 
 for row in directory_csv:
     if row[4] not in in_use_inodes:
-        print row[0]
+        txtfile.write('UNALLOCATED INODE < ' + row[4] + ' > REFERENCED BY DIRECTORY < ' + row[0] + ' > ENTRY < ' + row[1] + ' >\n')
 
 #find missing inodes
 inode_database = {}
@@ -127,8 +127,10 @@ for entry in inode_csv:
 
 for number in range(12, TOTAL_INODES):
     if inode_database[number] == 0:
-        print number
+        #print str(number)
         #figure out what the list number means
+        free_list_index = number/int(INODES_PER_GROUP)
+        txtfile.write('MISSING INODE < ' + str(number) + ' > SHOULD BE IN FREE LIST < ' + free_inode_bitmap_numbers[free_list_index]+  ' >\n')
 
 #incorrect link count
 inode_link_listing = {}
@@ -143,4 +145,24 @@ for key, value in inode_link_listing.items():
     if actual_link_count[key] != value:
         txtfile.write('LINKCOUNT < ' + str(key) + ' > IS < ' + str(value) + ' > SHOULD BE < ' + str(actual_link_count[key]) + ' >\n')
 
-#incorrect directory entry
+#find incorrect directory entry
+for entry in directory_csv:
+    if entry[5] == '.' and entry[3] == '1':
+        if int(entry[0]) != int(entry[4]):
+            txtfile.write('INCORRECT ENTRY IN < ' + entry[0] + ' > NAME < . > LINK TO < ' + entry[4] + ' > SHOULD BE < ' + entry[0] + ' >\n')
+    if entry[5] == '..':
+        foundflag = False
+        for dubs in directory_csv:
+            if dubs[0] == entry[4] and dubs[5] != '.' and dubs[5] != '..':
+                foundflag = True
+        if foundflag == False:
+            for replace in directory_csv:
+                if replace[4] == entry[0] and replace[5] != '.' and replace[5] != '..':
+                    txtfile.write('INCORRECT ENTRY IN < ' + entry[0] + ' > NAME < .. > LINK TO < ' + entry[4] + ' > SHOULD BE < ' + replace[0] + ' >\n')
+                
+#find invalid block pointers
+for entry in inode_csv:
+    if int(entry[10]) < 11:
+        for num in range(0, int(entry[10])):
+            if int(entry[num+11],16) == 0 or int(entry[num+11],16) > TOTAL_BLOCKS:
+                txtfile.write('INVALID BLOCK < ' + entry[num+11] + ' > IN INODE < ' + entry[0] + ' > ENTRY < ' + str(num) + ' >\n')

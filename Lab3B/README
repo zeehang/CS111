@@ -1,0 +1,10 @@
+LAB 3B 
+Name: Michael Zhang
+ID: 404606017
+
+Files included:
+    lab3b.py: File that completes the analysis required in the spec for Lab 3B 
+    README: this file 
+    Makefile: has the option of make dist, which creates a tarball for submission
+                make run - runs the python script 
+                make clean - removes files generated
