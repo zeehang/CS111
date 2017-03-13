@@ -35,7 +35,7 @@ int main (int argc, char **arv)
 	char buf[BUF_SIZE];
 	
 	//creating the socket
-	if(sockfd = socket(AF_INET, SOCK_STREAM, 0))
+	if(sockfd = socket(AF_INET, SOCK_STREAM, 0)< 0)
 	{
 		fprintf(stderr, "Error: Socket creation failed\n");
 		fflush(stderr);
@@ -43,13 +43,14 @@ int main (int argc, char **arv)
 	}
 	
 	server = gethostbyname(hostname);
-	struct in_addr* serverIP = server -> h_addr_list[0];
-	
+	//struct in_addr* serverIP = server -> h_addr_list[0];
+	bcopy((char *) server->h_addr,(char *)&server_address.sin_addr.s_addressserver->h_length);
 	server_address.sin_family = AF_INET;
 	server_address.sin_port = htons(PORT_NUMBER);
-	server_address.sin_addr = *serverIP;
+	//server_address.sin_addr = server -> h_addr;
+	//server_address.sin_addr = *serverIP;
 	//connect to server
-	if(connect(sockfd, &server_address, sizeof(server_address)) < 0)
+	if(connect(sockfd, (struct sockaddr*) &server_address, sizeof(server_address)) < 0)
 	{
 		fprintf(stderr, "Error in connecting to server\n");
 		fflush(stderr);
