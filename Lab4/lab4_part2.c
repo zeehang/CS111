@@ -31,7 +31,7 @@ int main (int argc, char **arv)
 {
 	int sockfd, n;
 	struct sockaddr_in server_address;
-	struct hostent *server;
+	struct hostent* server;
 	char buf[BUF_SIZE];
 	
 	//creating the socket
@@ -43,13 +43,13 @@ int main (int argc, char **arv)
 	}
 	
 	server = gethostbyname(hostname);
-	struct in_address* serverIP = server -> h_addr_list[0];
+	struct in_addr* serverIP = server -> h_addr_list[0];
 	
 	server_address.sin_family = AF_INET;
 	server_address.sin_port = htons(PORT_NUMBER);
 	server_address.sin_addr = *serverIP;
 	//connect to server
-	if(connect(sockfd, &server_adress, sizeof(server_adress)) < 0)
+	if(connect(sockfd, &server_address, sizeof(server_address)) < 0)
 	{
 		fprintf(stderr, "Error in connecting to server\n");
 		fflush(stderr);
