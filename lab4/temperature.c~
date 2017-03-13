@@ -1,0 +1,4 @@
+#include <math.h>
+
+const int B=4275;
+const 
