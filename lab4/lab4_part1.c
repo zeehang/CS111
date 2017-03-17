@@ -35,7 +35,7 @@ int main()
 	int value;
 	FILE* file;
 	//fprintf(stderr,"hello");
-	file = fopen("log_part1.txt", "w");
+	file = fopen("lab4_1.log", "w");
 	while(1)
 	{
 		value = mraa_aio_read(temp_sensor);
@@ -46,9 +46,10 @@ int main()
 		memset(time_str, 0, 10);
 		strftime(time_str, 9, "%H:%M:%S", format_time);
 		float converted = temp_equation(value);
+		converted = converted * 9/5 + 32;
 		fprintf(file,"%s %.1f\n", time_str, converted);
 		fflush(file);
-		sleep(3);
+		sleep(1);
 	}
 	fclose(file);
 	mraa_aio_close(temp_sensor);

@@ -12,29 +12,22 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
-#include <mraa/i2c.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/x509.h>
+#include <openssl/x509_vfy.h>
+#include <openssl/pem.h>
 #include "display.h"
 
-
+SSL *ssl;
+int sockfd;
 sig_atomic_t volatile run_flag = 1;
 int id = 404606017;
-
-static unsigned int PORT_NUMBER = 16000;
-static unsigned int TLS_PORT_NUMBER = 17000;
-static int BUF_SIZE = 1024;
-char *hostname = "r01.cs.ucla.edu";
 pthread_mutex_t mut;
 volatile int temp_scale = 0; //0 is F, 1 is Celsius
 volatile int period = 3;
 volatile int display = 1; //1 is on, 0 is off
-int sockfd, n;
 FILE* file;
-
-void error(char *msg)
-{
-	perror(msg);
-	exit(0);
-}
 
 float temp_equation(int initial)
 {
@@ -59,13 +52,14 @@ void* temperature_sense()
 
 	//fprintf(stderr,"hello");
 	char* ID_to_send = "404606017";
-	if(write(sockfd, ID_to_send, strlen(ID_to_send)) < 0)
+	if(SSL_write(ssl, ID_to_send, strlen(ID_to_send)) < 0)
 	{
-		fprintf(stderr, "Error writing to socket\n");
+		fprintf(stderr, "Error writing ID to ssl\n");
 	}
 	pthread_mutex_lock(&mut);
 	fprintf(file,"%s\n", ID_to_send);
 	pthread_mutex_unlock(&mut);
+	
 	while(1)
 	{
 		if(display)
@@ -90,13 +84,10 @@ void* temperature_sense()
 			strftime(time_str, 9, "%H:%M:%S", format_time);
 			float converted = temp_equation(value);
 			pthread_mutex_lock(&mut);
-			//portion to print to the log
 			fprintf(file,"%s %.1f\n", time_str, converted);
 			pthread_mutex_unlock(&mut);
 			char buffer[1024];
-			//portion to send to server
 			sprintf(buffer, "%d TEMP=%.1f", id, converted);
-			//portion to print to display
 			if(display)
 			{
 				char disp_buffer[1024];
@@ -109,9 +100,9 @@ void* temperature_sense()
 				sprintf(disp_buffer, "%.1f%c", converted, temp);
 				print_temperature(disp_buffer);
 			}
-			if(write(sockfd, buffer, strlen(buffer)) < 0)
+			if(SSL_write(ssl, buffer, strlen(buffer)) < 0)
 			{
-				fprintf(stderr, "Error writing to socket\n");
+				fprintf(stderr, "Error writing to ssl\n");
 				fflush(stderr);
 			}
 			fflush(file);
@@ -129,7 +120,7 @@ void* read_server_data()
 		char response[1024];
 		bzero(response, 1024);
 
-		if(read(sockfd, response, 1024) < 0)
+		if(SSL_read(ssl, response, 1024) < 0)
 		{
 			fprintf(stderr, "Error reading from socket\n");	
 			fflush(stderr);
@@ -156,6 +147,7 @@ void* read_server_data()
 			fprintf(file, "%s\n", response);
 			fflush(file);
 			pthread_mutex_unlock(&mut);
+            SSL_free(ssl);
 			close(sockfd);
 			fclose(file);
 			exit(0);
@@ -266,43 +258,52 @@ void* read_server_data()
 	}
 }
 
-int main (int argc, char **arv)
+int main()
 {
-	struct sockaddr_in server_address;
-	struct hostent* server;
-	char buf[BUF_SIZE];
-	
-	//creating the socket
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if(sockfd < 0)
-	{
-		fprintf(stderr, "Error: Socket creation failed\n");
-		fflush(stderr);
-		return 1;
-	}
-	
-	server = gethostbyname(hostname);
-	if(server == NULL)
-	{
-		fprintf(stderr, "ERROR: host not found\n");
-	}
-	//struct in_addr* serverIP = server -> h_addr_list[0];
-	bzero((char *) &server_address, sizeof(server_address));
-	server_address.sin_family = AF_INET;
-	bcopy((char *) server->h_addr,(char *)&server_address.sin_addr.s_addr, server->h_length);
-	server_address.sin_port = htons(PORT_NUMBER);
+    char hostname[] = "r01.cs.ucla.edu";
+    int port_number = 17000;
 
-	//server_address.sin_addr = server -> h_addr;
-	//server_address.sin_addr = *serverIP;
-	//connect to server
-	if(connect(sockfd, (struct sockaddr*) &server_address, sizeof(server_address)) < 0)
-	{
-		fprintf(stderr, "Error in connecting to server\n");
-		fflush(stderr);
-	}
+    const SSL_METHOD *method;
+    SSL_CTX *ctx;
 
-	file = fopen("lab4_2.log", "w");
-	pthread_t threadId[2];
+    struct hostent *server;
+    struct sockaddr_in server_address;
+
+    OpenSSL_add_all_algorithms();
+    ERR_load_BIO_strings();
+    ERR_load_crypto_strings();
+    SSL_load_error_strings();
+
+    SSL_library_init();
+
+    method = SSLv23_client_method();
+
+    ctx = SSL_CTX_new(method);
+
+     SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
+
+     server = gethostbyname(hostname);
+
+     ssl = SSL_new(ctx);
+
+     sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+     server_address.sin_family = AF_INET;
+     server_address.sin_port=htons(port_number);
+     server_address.sin_addr.s_addr = *(long*)(server -> h_addr);
+
+     if(connect(sockfd, (struct sockaddr*) &server_address, sizeof(struct sockaddr))<0)
+        fprintf(stderr, "Error connecting sockfd\n");
+    else
+        fprintf(stderr, "sockfd connect successfully\n");
+
+    SSL_set_fd(ssl, sockfd);
+    if(SSL_connect(ssl) < 0)
+        fprintf(stderr, "Error connecting SSL_connect\n");
+    else
+        fprintf(stderr, "Success in connecting SSL_connect\n");
+    file = fopen("lab4_3.log", "w");
+    pthread_t threadId[2];
 	//initialize the display
 	initialize_connection();
 	//start the first thread 
@@ -312,6 +313,8 @@ int main (int argc, char **arv)
 
 	pthread_join(threadId[0], NULL);
 	pthread_join(threadId[1], NULL);
-	close(sockfd);
+    SSL_free(ssl);
+    close(sockfd);
 	fclose(file);
+    return 0;
 }
