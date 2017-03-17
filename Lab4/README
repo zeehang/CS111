@@ -1,0 +1,18 @@
+Name: Michael Zhang
+UID: 404606017
+
+Display functionality works. Code for Parts 2 and 3 output to the display.
+
+Note that in this implementation the temperature sensor is connect to pin 0.
+
+Included files:
+    display.c and display.h - includes the source code necessary to ouput temperature readings to the display.
+        Code logic inspired by publicly available header files from Seeedstudio
+    lab4_part1.c - contains source code for program that outputs time and temperature to stdout as well as lab4_1.log 
+    lab4_part2.c - contains source code for program that connects to TCP server, sends temperature readings 
+        and to the server and adjusts according to commands sent from the server. Also displays the temperature on 
+        the Grove LCD
+    lab4_part2.c - contains source code that performs the same functionality as part2, but utilizes an SSL connection 
+    Makefile - builds all programs and also includes tarball command to generate submission .tar.gz 
+    README - this file, describes contents of the tarball 
+    display.png - proof that the display functionality works.

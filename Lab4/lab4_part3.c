@@ -46,7 +46,7 @@ void* temperature_sense()
 {
 	fprintf(stderr, "Entered temperature_sense\n");
 	mraa_aio_context temp_sensor;
-	temp_sensor = mraa_aio_init(3);
+	temp_sensor = mraa_aio_init(0);
 	//mraa_gpio_dir(temp_sensor, MRAA_GPIO_IN);
 	int value;
 

@@ -30,7 +30,7 @@ float temp_equation(int initial)
 int main()
 {
 	mraa_aio_context temp_sensor;
-	temp_sensor = mraa_aio_init(3);
+	temp_sensor = mraa_aio_init(0);
 	//mraa_gpio_dir(temp_sensor, MRAA_GPIO_IN);
 	int value;
 	FILE* file;
@@ -49,6 +49,8 @@ int main()
 		converted = converted * 9/5 + 32;
 		fprintf(file,"%s %.1f\n", time_str, converted);
 		fflush(file);
+		fprintf(stdout, "%s %.1f\n", time_str, converted);
+		fflush(stdout);
 		sleep(1);
 	}
 	fclose(file);

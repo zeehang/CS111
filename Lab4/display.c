@@ -41,6 +41,8 @@ void set_RGB(uint8_t r, uint8_t g, uint8_t b)
 void print_temperature(char* toprint)
 {
     set_cursor(0,0);
+    send_command(LCD_CLEARDISPLAY);
+    usleep(2000);
     for(int i = 0; i < strlen(toprint); i++)
     {
         send_data(toprint[i]);
